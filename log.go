@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/fatih/color"
@@ -48,9 +49,11 @@ func (l Logger) log(level, message string, fields F) {
 		return
 	}
 
-	fieldsStr := strings.Join(fun.ToSlice(fields, func(k string, v any) string {
+	fieldsSlice := fun.ToSlice(fields, func(k string, v any) string {
 		return color.BlueString(k) + "=" + color.GreenString("%#v", v)
-	}), " ")
+	})
+	sort.Strings(fieldsSlice)
+	fieldsStr := strings.Join(fieldsSlice, " ")
 	fmt.Fprintf(l.w, "[%s] %s%s %s\n", level, prefix, message, fieldsStr)
 }
 
