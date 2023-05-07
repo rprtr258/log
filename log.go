@@ -11,6 +11,14 @@ import (
 	"github.com/rprtr258/fun"
 )
 
+var (
+	_levelDebug = color.HiBlackString("DEBUG")
+	_levelInfo  = "INFO"
+	_levelWarn  = color.HiYellowString("WARN")
+	_levelError = color.RedString("ERROR")
+	_levelFatal = color.MagentaString("FATAL")
+)
+
 type F = map[string]any
 
 type Logger struct {
@@ -58,7 +66,7 @@ func (l Logger) log(level, message string, fields F) {
 }
 
 func (l Logger) Debugf(msg string, fields F) {
-	l.log(color.HiBlackString("DEBUG"), msg, fields)
+	l.log(_levelDebug, msg, fields)
 }
 
 func (l Logger) Debug(msg string) {
@@ -66,7 +74,7 @@ func (l Logger) Debug(msg string) {
 }
 
 func (l Logger) Infof(msg string, fields F) {
-	l.log("INFO", msg, fields)
+	l.log(_levelInfo, msg, fields)
 }
 
 func (l Logger) Info(msg string) {
@@ -74,7 +82,7 @@ func (l Logger) Info(msg string) {
 }
 
 func (l Logger) Warnf(msg string, fields F) {
-	l.log(color.HiYellowString("WARN"), msg, fields)
+	l.log(_levelWarn, msg, fields)
 }
 
 func (l Logger) Warn(msg string) {
@@ -82,7 +90,7 @@ func (l Logger) Warn(msg string) {
 }
 
 func (l Logger) Errorf(msg string, fields F) {
-	l.log(color.RedString("ERROR"), msg, fields)
+	l.log(_levelError, msg, fields)
 }
 
 func (l Logger) Error(msg string) {
@@ -90,7 +98,7 @@ func (l Logger) Error(msg string) {
 }
 
 func (l Logger) Fatalf(msg string, fields F) {
-	l.log(color.MagentaString("FATAL"), msg, fields)
+	l.log(_levelFatal, msg, fields)
 	os.Exit(1)
 }
 
