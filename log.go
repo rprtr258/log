@@ -103,7 +103,7 @@ func (l Logger) Fatalf(msg string, fields F) {
 }
 
 func (l Logger) Fatal(msg string) {
-	l.Debugf(msg, nil)
+	l.Fatalf(msg, nil)
 }
 
 func Debugf(msg string, fields F) {
