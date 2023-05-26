@@ -35,4 +35,14 @@ func main() {
 	l2.Warnf("warn msg with fields", fields)
 	l2.Error("error msg")
 	l2.Errorf("error msg with fields", fields)
+
+	l3 := log.With(log.F{"kupi": "doru"})
+	l3.Debug("debug msg")
+	l3.Debugf("debug msg with fields", fields)
+	l3.Info("info msg")
+	l3.Infof("info msg with fields", fields)
+	l3.Warn("warn msg")
+	l3.Warnf("warn msg with fields", fields)
+	l3.Error("error msg")
+	l3.Errorf("error msg with fields", fields)
 }

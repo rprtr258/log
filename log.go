@@ -24,6 +24,7 @@ type F = map[string]any
 type Logger struct {
 	w      io.Writer
 	prefix string
+	fields F
 }
 
 var _logger = newLogger()
@@ -36,6 +37,7 @@ func newLogger() Logger { // TODO: set options
 	return Logger{
 		w:      os.Stderr,
 		prefix: "",
+		fields: nil,
 	}
 }
 
@@ -43,6 +45,7 @@ func (l Logger) Tag(tag string) Logger {
 	return Logger{
 		w:      l.w,
 		prefix: l.prefix + "/" + tag,
+		fields: l.fields,
 	}
 }
 
@@ -50,18 +53,44 @@ func Tag(tag string) Logger {
 	return _logger.Tag(tag)
 }
 
+func (l Logger) With(fields F) Logger {
+	newFields := make(F, len(fields)+len(l.fields))
+	for k, v := range l.fields {
+		newFields[k] = v
+	}
+	for k, v := range fields {
+		newFields[k] = v
+	}
+
+	return Logger{
+		w:      l.w,
+		prefix: l.prefix,
+		fields: newFields,
+	}
+}
+
+func With(fields F) Logger {
+	return _logger.With(fields)
+}
+
 func (l Logger) log(level, message string, fields F) {
 	prefix := fun.If(l.prefix != "", color.HiCyanString(l.prefix)+" ", "")
-	if len(fields) == 0 {
+	if len(fields) == 0 && len(l.fields) == 0 {
 		fmt.Fprintf(l.w, "[%s] %s%s\n", level, prefix, message)
 		return
 	}
 
+	loggerFieldsSlice := fun.ToSlice(l.fields, func(k string, v any) string {
+		return color.BlueString(k) + "=" + color.GreenString("%#v", v)
+	})
 	fieldsSlice := fun.ToSlice(fields, func(k string, v any) string {
 		return color.BlueString(k) + "=" + color.GreenString("%#v", v)
 	})
+	fieldsSlice = append(fieldsSlice, loggerFieldsSlice...)
+
 	sort.Strings(fieldsSlice)
 	fieldsStr := strings.Join(fieldsSlice, " ")
+
 	fmt.Fprintf(l.w, "[%s] %s%s %s\n", level, prefix, message, fieldsStr)
 }
 
