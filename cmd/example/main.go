@@ -5,7 +5,11 @@ import (
 )
 
 func main() {
-	fields := log.F{"int": 1, "str": "aboba"}
+	fields := log.F{
+		"int":  1,
+		"str":  "aboba",
+		"list": []string{"a", "b", "c"},
+	}
 
 	log.Debug("debug msg")
 	log.Debugf("debug msg with fields", fields)

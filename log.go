@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -73,6 +74,30 @@ func With(fields F) Logger {
 	return _logger.With(fields)
 }
 
+func formatValue(v any) string {
+	if reflect.TypeOf(v).Kind() == reflect.Slice {
+		slice := reflect.ValueOf(v)
+
+		var sb strings.Builder
+		sb.WriteRune('[')
+		for i := 0; i < slice.Len(); i++ {
+			if i > 0 {
+				sb.WriteRune(',')
+			}
+
+			sb.WriteString(formatValue(slice.Index(i).Interface()))
+		}
+		sb.WriteRune(']')
+		return sb.String()
+	}
+
+	return color.GreenString("%#v", v)
+}
+
+func formatField(k string, v any) string {
+	return color.BlueString(k) + "=" + formatValue(v)
+}
+
 func (l Logger) log(level, message string, fields F) {
 	prefix := fun.If(l.prefix != "", color.HiCyanString(l.prefix)+" ", "")
 	if len(fields) == 0 && len(l.fields) == 0 {
@@ -80,12 +105,8 @@ func (l Logger) log(level, message string, fields F) {
 		return
 	}
 
-	loggerFieldsSlice := fun.ToSlice(l.fields, func(k string, v any) string {
-		return color.BlueString(k) + "=" + color.GreenString("%#v", v)
-	})
-	fieldsSlice := fun.ToSlice(fields, func(k string, v any) string {
-		return color.BlueString(k) + "=" + color.GreenString("%#v", v)
-	})
+	loggerFieldsSlice := fun.ToSlice(l.fields, formatField)
+	fieldsSlice := fun.ToSlice(fields, formatField)
 	fieldsSlice = append(fieldsSlice, loggerFieldsSlice...)
 
 	sort.Strings(fieldsSlice)
