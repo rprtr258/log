@@ -1,14 +1,61 @@
 package main
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/rprtr258/log"
 )
+
+// example enum
+type StatusType int
+
+const (
+	StatusInvalid StatusType = iota
+	StatusStarting
+	StatusRunning
+	StatusStopped
+)
+
+func (ps StatusType) String() string {
+	switch ps {
+	case StatusInvalid:
+		return "invalid"
+	case StatusStarting:
+		return "starting"
+	case StatusRunning:
+		return "running"
+	case StatusStopped:
+		return "stopped"
+	default:
+		return fmt.Sprintf("UNKNOWN(%d)", ps)
+	}
+}
+
+// example struct
+type Status struct {
+	StartTime time.Time
+	Status    StatusType
+	Pid       int
+	CPU       uint64
+	Memory    uint64
+	ExitCode  int
+}
 
 func main() {
 	fields := log.F{
 		"int":  1,
 		"str":  "aboba",
 		"list": []string{"a", "b", "c"},
+		"ts":   time.Now(),
+		"status": Status{
+			StartTime: time.Now(),
+			Status:    StatusRunning,
+			Pid:       123,
+			CPU:       300,
+			Memory:    1000,
+			ExitCode:  0,
+		},
 	}
 
 	log.Debug("debug msg")

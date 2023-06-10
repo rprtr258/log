@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/rprtr258/fun"
@@ -75,27 +76,63 @@ func With(fields F) Logger {
 }
 
 func formatValue(v any) string {
-	if reflect.TypeOf(v).Kind() == reflect.Slice {
-		slice := reflect.ValueOf(v)
+	switch v := v.(type) {
+	case string:
+		return v
+	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return fmt.Sprint(v)
+	case time.Time:
+		return v.Format("2006.01.02 15:04:05 MST")
+	case fmt.Stringer:
+		return v.String()
+	default:
+		switch reflect.TypeOf(v).Kind() {
+		case reflect.Slice:
+			slice := reflect.ValueOf(v)
 
-		var sb strings.Builder
-		sb.WriteRune('[')
-		for i := 0; i < slice.Len(); i++ {
-			if i > 0 {
-				sb.WriteRune(',')
+			var sb strings.Builder
+			sb.WriteRune('[')
+			for i := 0; i < slice.Len(); i++ {
+				if i > 0 {
+					sb.WriteString(", ")
+				}
+
+				sb.WriteString(formatValue(slice.Index(i).Interface()))
 			}
+			sb.WriteRune(']')
+			return sb.String()
+		case reflect.Struct:
+			structType := reflect.TypeOf(v)
+			structValue := reflect.ValueOf(v)
 
-			sb.WriteString(formatValue(slice.Index(i).Interface()))
+			var sb strings.Builder
+			sb.WriteRune('{')
+			firstFieldPrinted := false
+			for i := 0; i < structType.NumField(); i++ {
+				field := structType.Field(i)
+				if !field.IsExported() {
+					continue
+				}
+				if firstFieldPrinted {
+					sb.WriteString(", ")
+				}
+				firstFieldPrinted = true
+				sb.WriteString(fmt.Sprintf(
+					"%s=%s",
+					field.Name,
+					formatValue(structValue.Field(i).Interface()),
+				))
+			}
+			sb.WriteRune('}')
+			return sb.String()
+		default:
+			return fmt.Sprintf("%#v", v)
 		}
-		sb.WriteRune(']')
-		return sb.String()
 	}
-
-	return color.GreenString("%#v", v)
 }
 
 func formatField(k string, v any) string {
-	return color.BlueString(k) + "=" + formatValue(v)
+	return color.BlueString(k) + "=" + color.GreenString("%s", formatValue(v))
 }
 
 func (l Logger) log(level, message string, fields F) {
