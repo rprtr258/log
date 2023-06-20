@@ -67,29 +67,6 @@ func main() {
 	log.Warnf("warn msg with fields", fields)
 	log.Error("error msg")
 	log.Errorf("error msg with fields", fields)
-	log.Errorf("error happened", log.F{
-		"err": xerr.NewM("xerr with fields", xerr.Fields{
-			"int":  1,
-			"str":  "aboba",
-			"list": []string{"a", "b", "c"},
-			"ts":   time.Now(),
-			"status": Status{
-				StartTime: time.Now(),
-				Status:    StatusRunning,
-				Pid:       123,
-				CPU:       300,
-				Memory:    1000,
-				ExitCode:  0,
-			},
-		}),
-	})
-	log.Errorf("plain error happened", log.F{
-		"err": xerr.New(xerr.Fields{
-			"int": 1,
-			"str": "aboba",
-			"ts":  time.Now(),
-		}),
-	})
 
 	l1 := log.Tag("tag1")
 	l1.Debug("debug msg")
@@ -120,4 +97,29 @@ func main() {
 	l3.Warnf("warn msg with fields", fields)
 	l3.Error("error msg")
 	l3.Errorf("error msg with fields", fields)
+
+	err1 := xerr.NewM("xerr with fields", xerr.Fields{
+		"int":  1,
+		"str":  "aboba",
+		"list": []string{"a", "b", "c"},
+		"ts":   time.Now(),
+		"status": Status{
+			StartTime: time.Now(),
+			Status:    StatusRunning,
+			Pid:       123,
+			CPU:       300,
+			Memory:    1000,
+			ExitCode:  0,
+		},
+	})
+	log.Errorf("error happened", log.F{"err": err1})
+	err2 := xerr.New(xerr.Fields{
+		"int": 1,
+		"str": "aboba",
+		"ts":  time.Now(),
+	})
+	log.Errorf("plain error happened", log.F{"err": err2})
+	log.Errorf("combined error happened", log.F{
+		"err": xerr.NewM("aboba", xerr.Errors{err1, err2}),
+	})
 }

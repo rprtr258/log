@@ -1,2 +1,5 @@
 example: # run example
-	go run cmd/example/main.go
+	@go run cmd/example/main.go
+
+test: # run test
+	@go run gotest.tools/gotestsum@latest

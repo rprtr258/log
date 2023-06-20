@@ -90,7 +90,7 @@ func isLeaf(v any) bool {
 		return false
 	default:
 		switch reflect.TypeOf(v).Kind() {
-		case reflect.Slice, reflect.Struct:
+		case reflect.Slice, reflect.Struct, reflect.Map:
 			return false
 		default:
 			return true
@@ -129,6 +129,14 @@ func isShallow(v any) bool {
 		return res
 	default:
 		switch reflect.TypeOf(v).Kind() {
+		case reflect.Map:
+			structValue := reflect.ValueOf(v)
+
+			res := true
+			for i := structValue.MapRange(); i.Next(); {
+				res = res && isLeaf(i.Value().Interface())
+			}
+			return res
 		case reflect.Slice:
 			slice := reflect.ValueOf(v)
 
@@ -254,6 +262,16 @@ func formatField(k string, v any) []string {
 		return res
 	default:
 		switch reflect.TypeOf(v).Kind() {
+		case reflect.Map:
+			structValue := reflect.ValueOf(v)
+
+			res := []string{}
+			for i := structValue.MapRange(); i.Next(); {
+				kk, vv := i.Key(), i.Value()
+
+				res = append(res, formatField(k+"."+fmt.Sprint(kk), vv.Interface())...)
+			}
+			return res
 		case reflect.Slice:
 			slice := reflect.ValueOf(v)
 
