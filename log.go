@@ -89,8 +89,12 @@ func isLeaf(v any) bool {
 	}:
 		return false
 	default:
+		if reflect.TypeOf(v) == nil {
+			return true
+		}
+
 		switch reflect.TypeOf(v).Kind() {
-		case reflect.Slice, reflect.Struct, reflect.Map:
+		case reflect.Slice, reflect.Struct, reflect.Map, reflect.Pointer:
 			return false
 		default:
 			return true
@@ -108,10 +112,21 @@ func formatLeaf(v any) string {
 		return fmt.Sprint(v)
 	case time.Time:
 		return v.Format(`"2006.01.02 15:04:05 MST"`)
-	case fmt.Stringer:
-		return v.String()
 	default:
-		return fmt.Sprintf("%#v", v)
+		if reflect.TypeOf(v) == nil {
+			return "<nil>"
+		}
+
+		switch reflect.TypeOf(v).Kind() {
+		case reflect.String, reflect.Bool,
+			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+			reflect.Float32, reflect.Float64,
+			reflect.Complex64, reflect.Complex128:
+			return fmt.Sprint(v)
+		default:
+			return fmt.Sprintf("%#v", v)
+		}
 	}
 }
 
@@ -126,25 +141,32 @@ func isShallow(v any) bool {
 		for _, vv := range fields {
 			res = res && isLeaf(vv)
 		}
-		return res
+		return res && len(fields) != 1
 	default:
 		switch reflect.TypeOf(v).Kind() {
+		case reflect.Pointer:
+			pointerValue := reflect.ValueOf(v)
+			if pointerValue.IsZero() { // nil pointer
+				return false
+			}
+
+			return isShallow(pointerValue.Elem().Interface())
 		case reflect.Map:
-			structValue := reflect.ValueOf(v)
+			mapValue := reflect.ValueOf(v)
 
 			res := true
-			for i := structValue.MapRange(); i.Next(); {
+			for i := mapValue.MapRange(); i.Next(); {
 				res = res && isLeaf(i.Value().Interface())
 			}
-			return res
+			return res && mapValue.Len() != 1
 		case reflect.Slice:
-			slice := reflect.ValueOf(v)
+			sliceValue := reflect.ValueOf(v)
 
 			res := true
-			for i := 0; i < slice.Len(); i++ {
-				res = res && isLeaf(slice.Index(i).Interface())
+			for i := 0; i < sliceValue.Len(); i++ {
+				res = res && isLeaf(sliceValue.Index(i).Interface())
 			}
-			return res
+			return res && sliceValue.Len() != 1
 		case reflect.Struct:
 			structType := reflect.TypeOf(v)
 			structValue := reflect.ValueOf(v)
@@ -158,7 +180,7 @@ func isShallow(v any) bool {
 
 				res = res && isLeaf(structValue.Field(i).Interface())
 			}
-			return res
+			return res && structValue.NumField() != 1
 		default:
 			return false
 		}
@@ -190,9 +212,15 @@ func formatShallowField(k string, v any) string {
 		return formatShallowField(k, fields)
 	default:
 		switch reflect.TypeOf(v).Kind() {
+		case reflect.Pointer:
+			pointerValue := reflect.ValueOf(v)
+			if pointerValue.IsZero() {
+				return formatTrivialField(k, "<nil>")
+			}
+
+			return formatShallowField(k, pointerValue.Elem().Interface())
 		case reflect.Slice:
 			slice := reflect.ValueOf(v)
-
 			var sb strings.Builder
 			sb.WriteRune('[')
 			for i := 0; i < slice.Len(); i++ {
@@ -244,7 +272,7 @@ func formatField(k string, v any) []string {
 	}
 
 	switch v := v.(type) {
-	case string, bool, time.Time, fmt.Stringer,
+	case string, bool, time.Time, // fmt.Stringer,
 		int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64:
 		return []string{formatTrivialField(k, formatLeaf(v))}
@@ -262,6 +290,15 @@ func formatField(k string, v any) []string {
 		return res
 	default:
 		switch reflect.TypeOf(v).Kind() {
+		case reflect.Pointer:
+			pointerValue := reflect.ValueOf(v)
+			if pointerValue.IsZero() {
+				return []string{formatTrivialField(k, "<nil>")}
+			}
+
+			if ff := formatField(k, pointerValue.Elem().Interface()); len(ff) != 0 {
+				return ff
+			}
 		case reflect.Map:
 			structValue := reflect.ValueOf(v)
 
@@ -294,9 +331,17 @@ func formatField(k string, v any) []string {
 				res = append(res, formatField(k+"."+field.Name, structValue.Field(i).Interface())...)
 			}
 			return res
-		default:
-			return []string{formatTrivialField(k, fmt.Sprintf("%[1]T(%#[1]v)", v))}
 		}
+
+		if stringer, ok := v.(fmt.Stringer); ok {
+			return []string{formatTrivialField(k, stringer.String())}
+		}
+
+		if stringer, ok := v.(error); ok {
+			return []string{formatTrivialField(k, stringer.Error())}
+		}
+
+		return []string{formatTrivialField(k, fmt.Sprintf("%[1]T(%#[1]v)", v))}
 	}
 }
 

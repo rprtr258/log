@@ -134,4 +134,12 @@ func main() {
 			),
 		),
 	})
+	log.Infof("pointer to info", log.F{"data": &map[string]any{
+		"StartTime": time.Now(),
+		"Status":    StatusRunning,
+		"Pid":       123,
+		"CPU":       300,
+		"Memory":    []int{1000, 2000, 3000},
+		"ExitCode":  0,
+	}})
 }

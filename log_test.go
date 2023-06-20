@@ -10,6 +10,24 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+type ProcID uint64
+
+func TestFormatLeaf(t *testing.T) {
+	for name, test := range map[string]struct {
+		v    any
+		want string
+	}{
+		"ProcID": {
+			v:    ProcID(123),
+			want: "123",
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.want, formatLeaf(test.v))
+		})
+	}
+}
+
 func TestIsLeaf(t *testing.T) {
 	for name, test := range map[string]struct {
 		v    any
@@ -20,6 +38,17 @@ func TestIsLeaf(t *testing.T) {
 				"key": "value",
 			},
 			want: false,
+		},
+		"pointer to map[string]any": {
+			v: &map[string]any{
+				"key":  "value",
+				"ints": []int{1, 2, 3},
+			},
+			want: false,
+		},
+		"ProcID": {
+			v:    ProcID(123),
+			want: true,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -44,10 +73,11 @@ func TestIsShallow(t *testing.T) {
 		"map[string]any": {
 			v: map[string]any{
 				"key": "value",
+				"two": "three",
 			},
 			want: true,
 		},
-		"new": {
+		"depply nested xerr": {
 			v: xerr.Combine(
 				xerr.Combine(
 					xerr.NewWM(&exec.Error{
@@ -56,6 +86,13 @@ func TestIsShallow(t *testing.T) {
 					}, "look for executable path"),
 				),
 			),
+			want: false,
+		},
+		"pointer to map[string]any": {
+			v: &map[string]any{
+				"key":  "value",
+				"ints": []int{1, 2, 3},
+			},
 			want: false,
 		},
 	} {
