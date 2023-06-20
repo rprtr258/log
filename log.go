@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -75,16 +76,110 @@ func With(fields F) Logger {
 	return _logger.With(fields)
 }
 
-func formatValue(v any) string {
+func formatTrivialField(k string, v string) string {
+	return color.BlueString(k) + "=" + color.GreenString("%s", v)
+}
+
+func isLeaf(v any) bool {
+	switch v := v.(type) {
+	case time.Time:
+		return true
+	case interface {
+		UnwrapFields() (string, map[string]any)
+	}:
+		return false
+	default:
+		switch reflect.TypeOf(v).Kind() {
+		case reflect.Slice, reflect.Struct:
+			return false
+		default:
+			return true
+		}
+	}
+}
+
+func formatLeaf(v any) string {
 	switch v := v.(type) {
 	case string:
 		return v
-	case bool, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+	case bool,
+		int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64:
 		return fmt.Sprint(v)
 	case time.Time:
-		return v.Format("2006.01.02 15:04:05 MST")
+		return v.Format(`"2006.01.02 15:04:05 MST"`)
 	case fmt.Stringer:
 		return v.String()
+	default:
+		return fmt.Sprintf("%#v", v)
+	}
+}
+
+// isShallow - returns true if given struct/list/map has one level of nestedness
+func isShallow(v any) bool {
+	switch v := v.(type) {
+	case interface {
+		UnwrapFields() (string, map[string]any)
+	}:
+		message, fields := v.UnwrapFields()
+		res := message == ""
+		for _, vv := range fields {
+			res = res && isLeaf(vv)
+		}
+		return res
+	default:
+		switch reflect.TypeOf(v).Kind() {
+		case reflect.Slice:
+			slice := reflect.ValueOf(v)
+
+			res := true
+			for i := 0; i < slice.Len(); i++ {
+				res = res && isLeaf(slice.Index(i).Interface())
+			}
+			return res
+		case reflect.Struct:
+			structType := reflect.TypeOf(v)
+			structValue := reflect.ValueOf(v)
+
+			res := true
+			for i := 0; i < structType.NumField(); i++ {
+				field := structType.Field(i)
+				if !field.IsExported() {
+					continue
+				}
+
+				res = res && isLeaf(structValue.Field(i).Interface())
+			}
+			return res
+		default:
+			return false
+		}
+	}
+}
+
+func formatShallowField(k string, v any) string {
+	switch v := v.(type) {
+	case map[string]any:
+		var sb strings.Builder
+		sb.WriteRune('{')
+		itemWritten := false
+		for kk, vv := range v {
+			if itemWritten {
+				sb.WriteString(", ")
+			}
+
+			itemWritten = true
+			sb.WriteString(kk)
+			sb.WriteString(": ")
+			sb.WriteString(formatLeaf(vv))
+		}
+		sb.WriteRune('}')
+		return formatTrivialField(k, sb.String())
+	case interface {
+		UnwrapFields() (string, map[string]any)
+	}:
+		_, fields := v.UnwrapFields()
+		return formatShallowField(k, fields)
 	default:
 		switch reflect.TypeOf(v).Kind() {
 		case reflect.Slice:
@@ -97,42 +192,107 @@ func formatValue(v any) string {
 					sb.WriteString(", ")
 				}
 
-				sb.WriteString(formatValue(slice.Index(i).Interface()))
+				sb.WriteString(formatLeaf(slice.Index(i).Interface()))
 			}
 			sb.WriteRune(']')
-			return sb.String()
+			return formatTrivialField(k, sb.String())
 		case reflect.Struct:
 			structType := reflect.TypeOf(v)
 			structValue := reflect.ValueOf(v)
 
 			var sb strings.Builder
+			firstFieldWritten := false
 			sb.WriteRune('{')
-			firstFieldPrinted := false
 			for i := 0; i < structType.NumField(); i++ {
 				field := structType.Field(i)
 				if !field.IsExported() {
 					continue
 				}
-				if firstFieldPrinted {
+
+				if firstFieldWritten {
 					sb.WriteString(", ")
 				}
-				firstFieldPrinted = true
-				sb.WriteString(fmt.Sprintf(
-					"%s=%s",
-					field.Name,
-					formatValue(structValue.Field(i).Interface()),
-				))
+
+				firstFieldWritten = true
+				sb.WriteString(field.Name)
+				sb.WriteString(": ")
+				sb.WriteString(formatLeaf(structValue.Field(i).Interface()))
 			}
 			sb.WriteRune('}')
-			return sb.String()
+			return formatTrivialField(k, sb.String())
 		default:
-			return fmt.Sprintf("%#v", v)
+			panic(fmt.Sprintf("can't marshal %T as shallow type", v))
 		}
 	}
 }
 
-func formatField(k string, v any) string {
-	return color.BlueString(k) + "=" + color.GreenString("%s", formatValue(v))
+func formatField(k string, v any) []string {
+	if isLeaf(v) {
+		return []string{formatTrivialField(k, formatLeaf(v))}
+	}
+
+	if isShallow(v) {
+		return []string{formatShallowField(k, v)}
+	}
+
+	switch v := v.(type) {
+	case string, bool, time.Time, fmt.Stringer,
+		int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64:
+		return []string{formatTrivialField(k, formatLeaf(v))}
+	case interface {
+		UnwrapFields() (string, map[string]any)
+	}:
+		res := []string{}
+		message, fields := v.UnwrapFields()
+		if message != "" {
+			res = append(res, formatTrivialField(k, message))
+		}
+		for kk, vv := range fields {
+			res = append(res, formatField(k+"."+kk, vv)...)
+		}
+		return res
+	default:
+		switch reflect.TypeOf(v).Kind() {
+		case reflect.Slice:
+			slice := reflect.ValueOf(v)
+
+			res := []string{}
+			for i := 0; i < slice.Len(); i++ {
+				res = append(res, formatField(k+"."+strconv.Itoa(i), slice.Index(i).Interface())...)
+			}
+			return res
+		case reflect.Struct:
+			structType := reflect.TypeOf(v)
+			structValue := reflect.ValueOf(v)
+
+			res := []string{}
+			for i := 0; i < structType.NumField(); i++ {
+				field := structType.Field(i)
+				if !field.IsExported() {
+					continue
+				}
+
+				res = append(res, formatField(k+"."+field.Name, structValue.Field(i).Interface())...)
+			}
+			return res
+		default:
+			return []string{formatTrivialField(k, fmt.Sprintf("%[1]T(%#[1]v)", v))}
+		}
+	}
+}
+
+func concat[T any](a ...[]T) []T {
+	resultLen := 0
+	for _, v := range a {
+		resultLen += len(v)
+	}
+
+	res := make([]T, 0, resultLen)
+	for _, v := range a {
+		res = append(res, v...)
+	}
+	return res
 }
 
 func (l Logger) log(level, message string, fields F) {
@@ -142,14 +302,15 @@ func (l Logger) log(level, message string, fields F) {
 		return
 	}
 
-	loggerFieldsSlice := fun.ToSlice(l.fields, formatField)
-	fieldsSlice := fun.ToSlice(fields, formatField)
-	fieldsSlice = append(fieldsSlice, loggerFieldsSlice...)
+	fieldsSlice := concat(
+		concat(fun.ToSlice(fields, formatField)...),
+		concat(fun.ToSlice(l.fields, formatField)...),
+	)
 
 	sort.Strings(fieldsSlice)
-	fieldsStr := strings.Join(fieldsSlice, " ")
+	fieldsStr := "\n\t" + strings.Join(fieldsSlice, "\n\t")
 
-	fmt.Fprintf(l.w, "[%s] %s%s %s\n", level, prefix, message, fieldsStr)
+	fmt.Fprintf(l.w, "[%s] %s%s%s\n", level, prefix, message, fieldsStr)
 }
 
 func (l Logger) Debugf(msg string, fields F) {
