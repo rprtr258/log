@@ -1,8 +1,12 @@
 package log
 
 import (
+	"errors"
+	"os/exec"
 	"testing"
 
+	"github.com/kr/pretty"
+	"github.com/rprtr258/xerr"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,9 +47,20 @@ func TestIsShallow(t *testing.T) {
 			},
 			want: true,
 		},
+		"new": {
+			v: xerr.Combine(
+				xerr.Combine(
+					xerr.NewWM(&exec.Error{
+						Name: "jjjjjjjjj",
+						Err:  errors.New("executable file not found in $PATH"),
+					}, "look for executable path"),
+				),
+			),
+			want: false,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, test.want, isShallow(test.v))
+			assert.Equal(t, test.want, isShallow(test.v), "v is %s", pretty.Sprint(test.v))
 		})
 	}
 }

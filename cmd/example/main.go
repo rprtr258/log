@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"os/exec"
 	"time"
 
 	"github.com/rprtr258/log"
@@ -121,5 +123,15 @@ func main() {
 	log.Errorf("plain error happened", log.F{"err": err2})
 	log.Errorf("combined error happened", log.F{
 		"err": xerr.NewM("aboba", xerr.Errors{err1, err2}),
+	})
+	log.Errorf("deeply embedded error happened", log.F{
+		"err": xerr.Combine(
+			xerr.Combine(
+				xerr.NewWM(&exec.Error{
+					Name: "jjjjjjjjj",
+					Err:  errors.New("executable file not found in $PATH"),
+				}, "look for executable path"),
+			),
+		),
 	})
 }
