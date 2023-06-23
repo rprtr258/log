@@ -5,8 +5,8 @@ go 1.19
 require (
 	github.com/fatih/color v1.15.0
 	github.com/kr/pretty v0.3.1
-	github.com/rprtr258/fun v0.0.4
-	github.com/rprtr258/xerr v0.0.8
+	github.com/rprtr258/fun v0.1.0
+	github.com/rprtr258/xerr v0.1.2
 	github.com/stretchr/testify v1.8.2
 )
 
