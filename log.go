@@ -101,18 +101,14 @@ func isLeaf(v any) bool {
 func formatLeaf(v any) string {
 	switch v := v.(type) {
 	case string:
-		return v
+		return fmt.Sprintf("%q", v)
 	case bool,
 		int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64:
 		return fmt.Sprint(v)
 	case time.Time:
-		return v.Format(`2006.01.02 15:04:05 MST`)
+		return v.Format(`"2006.01.02 15:04:05 MST"`)
 	default:
-		if reflect.TypeOf(v) == nil {
-			return "<nil>"
-		}
-
 		switch reflect.TypeOf(v).Kind() {
 		case reflect.String, reflect.Bool,
 			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
