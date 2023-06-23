@@ -18,10 +18,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/rogpeppe/go-internal v1.9.0 h1:73kH8U+JUqXU8lRuOHeVHaa/SZPifC7BkcraZVejAe8=
 github.com/rogpeppe/go-internal v1.9.0/go.mod h1:WtVeX8xhTBvf0smdhujwtBcq4Qrzq/fJaraNFVN+nFs=
-github.com/rprtr258/fun v0.0.4 h1:hmQO9SccKUmdce3mA9FZ41ZHZJEMCZk3ZbwlNKTLzyw=
-github.com/rprtr258/fun v0.0.4/go.mod h1:xxOYkmNW7A7DEw07iuHv2NAB75HHDBqQB6Xf21k0sFU=
-github.com/rprtr258/xerr v0.0.8 h1:ZMlG9NKtJqnaTqHeyBrugQw5B+23Sht5OfYe9lDSS24=
-github.com/rprtr258/xerr v0.0.8/go.mod h1:B5QX6EGviITQqSoQbV2C+lpRR5kFPQJqMfL8/Y3MAR4=
+github.com/rprtr258/xerr v0.1.2 h1:f3/2+5oTWY89i1iKzocmyhxPtsVLveB6v8168vN/CBY=
+github.com/rprtr258/xerr v0.1.2/go.mod h1:B5QX6EGviITQqSoQbV2C+lpRR5kFPQJqMfL8/Y3MAR4=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=
 github.com/stretchr/objx v0.4.0/go.mod h1:YvHI0jy2hoMjB+UWwv71VJQ9isScKT/TqJzVSSt89Yw=
 github.com/stretchr/objx v0.5.0/go.mod h1:Yh+to48EsGEfYuaHDzXPcE3xhTkx73EhmCGUpEOglKo=
