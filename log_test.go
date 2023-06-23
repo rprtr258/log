@@ -8,6 +8,7 @@ import (
 	"github.com/kr/pretty"
 	"github.com/rprtr258/xerr"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slog"
 )
 
 type ProcID uint64
@@ -20,6 +21,10 @@ func TestFormatLeaf(t *testing.T) {
 		"ProcID": {
 			v:    ProcID(123),
 			want: "123",
+		},
+		"str": {
+			v:    "aboba",
+			want: `"aboba"`,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -98,6 +103,30 @@ func TestIsShallow(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, test.want, isShallow(test.v), "v is %s", pretty.Sprint(test.v))
+		})
+	}
+}
+
+func TestFormatAttr(t *testing.T) {
+	for name, test := range map[string]struct {
+		attr slog.Attr
+		want []string
+	}{
+		"str": {
+			attr: slog.String("a", "b"),
+			want: []string{`a="b"`},
+		},
+		"nil pointer to struct": {
+			attr: slog.Any("a", struct {
+				p *int
+			}{
+				p: nil,
+			}),
+			want: nil,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, test.want, formatAttr("", test.attr))
 		})
 	}
 }
