@@ -84,10 +84,6 @@ func isLeaf(v any) bool {
 	switch v := v.(type) {
 	case time.Time:
 		return true
-	case interface {
-		UnwrapFields() (string, map[string]any)
-	}:
-		return false
 	default:
 		if reflect.TypeOf(v) == nil {
 			return true
@@ -133,15 +129,6 @@ func formatLeaf(v any) string {
 // isShallow - returns true if given struct/list/map has one level of nestedness
 func isShallow(v any) bool {
 	switch v := v.(type) {
-	case interface {
-		UnwrapFields() (string, map[string]any)
-	}:
-		message, fields := v.UnwrapFields()
-		res := message == ""
-		for _, vv := range fields {
-			res = res && isLeaf(vv)
-		}
-		return res && len(fields) != 1
 	default:
 		switch reflect.TypeOf(v).Kind() {
 		case reflect.Pointer:
@@ -205,11 +192,6 @@ func formatShallowField(k string, v any) string {
 		}
 		sb.WriteRune('}')
 		return formatTrivialField(k, sb.String())
-	case interface {
-		UnwrapFields() (string, map[string]any)
-	}:
-		_, fields := v.UnwrapFields()
-		return formatShallowField(k, fields)
 	default:
 		switch reflect.TypeOf(v).Kind() {
 		case reflect.Pointer:
@@ -262,7 +244,6 @@ func formatShallowField(k string, v any) string {
 	}
 }
 
-// TODO: sort by depth
 func formatField(k string, v any) []string {
 	if v == nil || reflect.ValueOf(v).IsZero() {
 		return nil
@@ -281,18 +262,6 @@ func formatField(k string, v any) []string {
 		int, int8, int16, int32, int64,
 		uint, uint8, uint16, uint32, uint64:
 		return []string{formatTrivialField(k, formatLeaf(v))}
-	case interface {
-		UnwrapFields() (string, map[string]any)
-	}:
-		res := []string{}
-		message, fields := v.UnwrapFields()
-		if message != "" {
-			res = append(res, formatTrivialField(k, message))
-		}
-		for kk, vv := range fields {
-			res = append(res, formatField(k+"."+kk, vv)...)
-		}
-		return res
 	default:
 		switch reflect.TypeOf(v).Kind() {
 		case reflect.Pointer:
