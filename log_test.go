@@ -100,6 +100,13 @@ func TestIsShallow(t *testing.T) {
 			},
 			want: false,
 		},
+		"map[string]string": {
+			v: map[string]string{
+				"a": "b",
+				"c": "d",
+			},
+			want: true,
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, test.want, isShallow(test.v), "v is %s", pretty.Sprint(test.v))

@@ -137,5 +137,9 @@ func main() {
 		"CPU":       300,
 		"Memory":    []int{1000, 2000, 3000},
 		"ExitCode":  0,
+		"map[string]string": map[string]string{
+			"a": "b",
+			"c": "d",
+		},
 	})
 }

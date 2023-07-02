@@ -149,7 +149,7 @@ func formatLeaf(v any) string {
 	}
 }
 
-// isShallow - returns true if given struct/list/map has one level of nestedness
+// isShallow - returns true if given struct/list/map has one level of nesting
 func isShallow(v any) bool {
 	reflValue := reflect.ValueOf(v)
 	switch reflect.TypeOf(v).Kind() {
@@ -191,82 +191,81 @@ func isShallow(v any) bool {
 
 func formatShallow(grp string, v slog.Attr) string {
 	k := v.Key
-	switch v := v.Value.Any().(type) {
-	case map[string]any:
-		if len(v) == 0 {
+	reflValue := reflect.ValueOf(v.Value.Any())
+	switch reflect.TypeOf(v.Value.Any()).Kind() {
+	case reflect.Pointer:
+		if reflValue.IsZero() {
+			return ""
+		}
+
+		return formatShallow(grp, slog.Any(k, reflValue.Elem().Interface()))
+	case reflect.Map:
+		if reflValue.Len() == 0 {
 			return ""
 		}
 
 		var sb strings.Builder
 		sb.WriteRune('{')
 		itemWritten := false
-		for kk, vv := range v {
+		for i := reflValue.MapRange(); i.Next(); {
+			kk, vv := i.Key(), i.Value()
+
 			if itemWritten {
 				sb.WriteString(", ")
 			}
 
 			itemWritten = true
-			sb.WriteString(kk)
+			sb.WriteString(fmt.Sprint(kk.Interface()))
 			sb.WriteString(": ")
-			sb.WriteString(formatLeaf(vv))
+			sb.WriteString(formatLeaf(vv.Interface()))
+		}
+		sb.WriteRune('}')
+		return formatTrivialField(grp, k, sb.String())
+	case reflect.Slice:
+		if reflValue.Len() == 0 {
+			return ""
+		}
+
+		var sb strings.Builder
+		sb.WriteRune('[')
+		for i := 0; i < reflValue.Len(); i++ {
+			if i > 0 {
+				sb.WriteString(", ")
+			}
+
+			sb.WriteString(formatLeaf(reflValue.Index(i).Interface()))
+		}
+		sb.WriteRune(']')
+		return formatTrivialField(grp, k, sb.String())
+	case reflect.Struct:
+		structType := reflect.TypeOf(v.Value.Any())
+
+		if structType.NumField() == 0 {
+			return ""
+		}
+
+		var sb strings.Builder
+		firstFieldWritten := false
+		sb.WriteRune('{')
+		for i := 0; i < structType.NumField(); i++ {
+			field := structType.Field(i)
+			if !field.IsExported() {
+				continue
+			}
+
+			if firstFieldWritten {
+				sb.WriteString(", ")
+			}
+
+			firstFieldWritten = true
+			sb.WriteString(field.Name)
+			sb.WriteString(": ")
+			sb.WriteString(formatLeaf(reflValue.Field(i).Interface()))
 		}
 		sb.WriteRune('}')
 		return formatTrivialField(grp, k, sb.String())
 	default:
-		reflValue := reflect.ValueOf(v)
-		switch reflect.TypeOf(v).Kind() {
-		case reflect.Pointer:
-			if reflValue.IsZero() {
-				return ""
-			}
-
-			return formatShallow(grp, slog.Any(k, reflValue.Elem().Interface()))
-		case reflect.Slice:
-			if reflValue.Len() == 0 {
-				return ""
-			}
-
-			var sb strings.Builder
-			sb.WriteRune('[')
-			for i := 0; i < reflValue.Len(); i++ {
-				if i > 0 {
-					sb.WriteString(", ")
-				}
-
-				sb.WriteString(formatLeaf(reflValue.Index(i).Interface()))
-			}
-			sb.WriteRune(']')
-			return formatTrivialField(grp, k, sb.String())
-		case reflect.Struct:
-			structType := reflect.TypeOf(v)
-
-			if structType.NumField() == 0 {
-				return ""
-			}
-
-			var sb strings.Builder
-			firstFieldWritten := false
-			sb.WriteRune('{')
-			for i := 0; i < structType.NumField(); i++ {
-				field := structType.Field(i)
-				if !field.IsExported() {
-					continue
-				}
-
-				if firstFieldWritten {
-					sb.WriteString(", ")
-				}
-
-				firstFieldWritten = true
-				sb.WriteString(field.Name)
-				sb.WriteString(": ")
-				sb.WriteString(formatLeaf(reflValue.Field(i).Interface()))
-			}
-			sb.WriteRune('}')
-			return formatTrivialField(grp, k, sb.String())
-		default:
-			panic(fmt.Sprintf("can't marshal %T as shallow type", v))
-		}
+		panic(fmt.Sprintf("can't marshal %T as shallow type", v.Value.Any()))
 	}
 }
 
