@@ -269,6 +269,10 @@ func formatShallow(grp string, v slog.Attr) string {
 	}
 }
 
+func formatError(err error) string {
+	return fmt.Sprintf("%T(%s)", err, err.Error())
+}
+
 func formatAttr(grp string, a slog.Attr) []string {
 	t, isTime := a.Value.Any().(time.Time)
 	if isTime && t.IsZero() || // If r.Time is the zero time, ignore the time.
@@ -358,7 +362,16 @@ func formatAttr(grp string, a slog.Attr) []string {
 				return nil
 			}
 
-			return formatAttr(grp, slog.Any(k, reflValue.Elem().Interface()))
+			res := formatAttr(grp, slog.Any(k, reflValue.Elem().Interface()))
+			if len(res) == 0 {
+				if err, ok := v.(error); ok {
+					return []string{formatTrivialField(grp, k, formatError(err))}
+				}
+
+				return nil
+			}
+
+			return res
 		case reflect.Map:
 			if reflValue.Len() == 0 {
 				return nil
@@ -394,6 +407,10 @@ func formatAttr(grp string, a slog.Attr) []string {
 				res = append(res, formatAttr(grp, slog.Any(k+"."+field.Name, reflValue.Field(i).Interface()))...)
 			}
 			if len(res) == 0 {
+				if err, ok := v.(error); ok {
+					return []string{formatTrivialField(grp, k, formatError(err))}
+				}
+
 				return nil
 			}
 
