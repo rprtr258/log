@@ -33,70 +33,8 @@ func (l destructorHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= l.level
 }
 
-func (l destructorHandler) Handle(ctx context.Context, record slog.Record) error {
-	fieldsSlice := slices.Clip(l.preformattedAttrs)
-	record.Attrs(func(a slog.Attr) bool {
-		fieldsSlice = append(fieldsSlice, formatAttr("", a)...)
-		return true
-	})
-
-	record2 := slog.Record{
-		Time:    record.Time,
-		Message: record.Message,
-		Level:   record.Level,
-		PC:      record.PC,
-	}
-	record2.AddAttrs(fieldsSlice...)
-
-	return l.h.Handle(ctx, record2)
-}
-
-func (l destructorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	newAttrs := []slog.Attr{}
-	for _, a := range attrs {
-		newAttrs = append(newAttrs, formatAttr(l.group, slog.Any(a.Key, a.Value))...)
-	}
-	return destructorHandler{
-		h:                 l.h,
-		group:             l.group,
-		preformattedAttrs: append(l.preformattedAttrs, newAttrs...),
-		level:             l.level,
-	}
-}
-
-func (l destructorHandler) WithGroup(name string) slog.Handler {
-	return destructorHandler{
-		h:                 l.h,
-		group:             l.group + name + "/",
-		preformattedAttrs: slices.Clip(l.preformattedAttrs),
-		level:             l.level,
-	}
-}
-
-// TODO: slog.GroupValue
-func formatTrivialField(grp, k string, v slog.Value) slog.Attr {
-	return slog.Attr{
-		Key:   grp + k,
-		Value: v,
-	}
-}
-
-func isLeaf(v any) bool {
-	switch vv := v.(type) {
-	case time.Time:
-		return true
-	default:
-		if reflect.TypeOf(vv) == nil {
-			return true
-		}
-
-		switch reflect.TypeOf(vv).Kind() {
-		case reflect.Slice, reflect.Struct, reflect.Map, reflect.Pointer:
-			return false
-		default:
-			return true
-		}
-	}
+func formatError(err error) slog.Value {
+	return slog.StringValue(fmt.Sprintf("%T(%s)", err, err.Error()))
 }
 
 func formatLeaf(v any) slog.Value {
@@ -140,8 +78,30 @@ func formatLeaf(v any) slog.Value {
 	}
 }
 
-func formatError(err error) slog.Value {
-	return slog.StringValue(fmt.Sprintf("%T(%s)", err, err.Error()))
+func isLeaf(v any) bool {
+	switch vv := v.(type) {
+	case time.Time:
+		return true
+	default:
+		if reflect.TypeOf(vv) == nil {
+			return true
+		}
+
+		switch reflect.TypeOf(vv).Kind() {
+		case reflect.Slice, reflect.Struct, reflect.Map, reflect.Pointer:
+			return false
+		default:
+			return true
+		}
+	}
+}
+
+// TODO: slog.GroupValue
+func formatTrivialField(grp, k string, v slog.Value) slog.Attr {
+	return slog.Attr{
+		Key:   grp + k,
+		Value: v,
+	}
 }
 
 func formatAttr(grp string, a slog.Attr) []slog.Attr {
@@ -286,5 +246,45 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 		}
 	default:
 		panic("unknown value kind")
+	}
+}
+
+func (l destructorHandler) Handle(ctx context.Context, record slog.Record) error {
+	fieldsSlice := slices.Clip(l.preformattedAttrs)
+	record.Attrs(func(a slog.Attr) bool {
+		fieldsSlice = append(fieldsSlice, formatAttr("", a)...)
+		return true
+	})
+
+	record2 := slog.Record{
+		Time:    record.Time,
+		Message: record.Message,
+		Level:   record.Level,
+		PC:      record.PC,
+	}
+	record2.AddAttrs(fieldsSlice...)
+
+	return l.h.Handle(ctx, record2)
+}
+
+func (l destructorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	newAttrs := []slog.Attr{}
+	for _, a := range attrs {
+		newAttrs = append(newAttrs, formatAttr(l.group, slog.Any(a.Key, a.Value))...)
+	}
+	return destructorHandler{
+		h:                 l.h,
+		group:             l.group,
+		preformattedAttrs: append(l.preformattedAttrs, newAttrs...),
+		level:             l.level,
+	}
+}
+
+func (l destructorHandler) WithGroup(name string) slog.Handler {
+	return destructorHandler{
+		h:                 l.h,
+		group:             l.group + name + "/",
+		preformattedAttrs: slices.Clip(l.preformattedAttrs),
+		level:             l.level,
 	}
 }
