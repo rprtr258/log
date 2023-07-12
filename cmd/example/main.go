@@ -3,12 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
-	"github.com/rprtr258/log"
 	"github.com/rprtr258/xerr"
 	"golang.org/x/exp/slog"
+
+	"github.com/rprtr258/log"
 )
 
 // example enum
@@ -38,30 +40,34 @@ func (ps StatusType) String() string {
 
 // example struct
 type Status struct {
-	StartTime time.Time
-	Status    StatusType
-	Pid       int
-	CPU       uint64
-	Memory    uint64
-	ExitCode  int
+	StartTime  time.Time
+	Status     StatusType
+	RunningFor time.Duration
+	Pid        int
+	CPU        uint64
+	Memory     uint64
+	ExitCode   int
 }
 
-func main() {
-	slog.SetDefault(slog.New(log.New()))
+func run(l slog.Handler) {
+	slog.SetDefault(slog.New(l))
+
+	st := Status{
+		StartTime:  time.Now(),
+		Status:     StatusRunning,
+		RunningFor: time.Minute*3 + time.Second*42,
+		Pid:        123,
+		CPU:        300,
+		Memory:     1000,
+		ExitCode:   0,
+	}
 
 	fields := []any{
 		"int", 1,
 		"str", "aboba",
 		"list", []string{"a", "b", "c"},
 		"ts", time.Now(),
-		"status", Status{
-			StartTime: time.Now(),
-			Status:    StatusRunning,
-			Pid:       123,
-			CPU:       300,
-			Memory:    1000,
-			ExitCode:  0,
-		},
+		"status", st,
 	}
 
 	slog.Debug("debug msg")
@@ -97,18 +103,11 @@ func main() {
 	l3.Error("error msg with fields", fields...)
 
 	err1 := xerr.NewM("xerr with fields", xerr.Fields{
-		"int":  1,
-		"str":  "aboba",
-		"list": []string{"a", "b", "c"},
-		"ts":   time.Now(),
-		"status": Status{
-			StartTime: time.Now(),
-			Status:    StatusRunning,
-			Pid:       123,
-			CPU:       300,
-			Memory:    1000,
-			ExitCode:  0,
-		},
+		"int":    1,
+		"str":    "aboba",
+		"list":   []string{"a", "b", "c"},
+		"ts":     time.Now(),
+		"status": st,
 	})
 	slog.Error("error happened", "err", err1)
 	err2 := xerr.New(xerr.Fields{
@@ -142,4 +141,50 @@ func main() {
 			"c": "d",
 		},
 	})
+}
+
+func main() {
+	for _, l := range []struct {
+		name string
+		h    slog.Handler
+	}{
+		{
+			name: "json",
+			h: slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+			}),
+		},
+		{
+			name: "destruct(json)",
+			h: log.NewDestructorHandler(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+			})),
+		},
+		{
+			name: "text",
+			h: slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+			}),
+		},
+		{
+			name: "destruct(text)",
+			h: log.NewDestructorHandler(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+			})),
+		},
+		{
+			name: "destruct(pretty)",
+			h:    log.NewDestructorHandler(log.NewPrettyHandler(os.Stderr)),
+		},
+		{
+			name: "pretty",
+			h:    log.NewPrettyHandler(os.Stderr),
+		},
+	} {
+		fmt.Println(l.name)
+		run(l.h)
+		fmt.Println()
+		fmt.Println()
+		fmt.Println()
+	}
 }
