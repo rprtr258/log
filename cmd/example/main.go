@@ -3,12 +3,14 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"time"
 
-	"github.com/rprtr258/log"
 	"github.com/rprtr258/xerr"
 	"golang.org/x/exp/slog"
+
+	"github.com/rprtr258/log"
 )
 
 // example enum
@@ -46,8 +48,8 @@ type Status struct {
 	ExitCode  int
 }
 
-func main() {
-	slog.SetDefault(slog.New(log.New()))
+func run(l slog.Handler) {
+	slog.SetDefault(slog.New(l))
 
 	fields := []any{
 		"int", 1,
@@ -142,4 +144,27 @@ func main() {
 			"c": "d",
 		},
 	})
+}
+
+func main() {
+	for name, l := range map[string]slog.Handler{
+		"json": slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource: true,
+		}),
+		"log(json)": log.NewDestructorHandler(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource: true,
+		})),
+		"text": slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource: true,
+		}),
+		"log(text)": log.NewDestructorHandler(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+			AddSource: true,
+		})),
+	} {
+		fmt.Println(name)
+		run(l)
+		fmt.Println()
+		fmt.Println()
+		fmt.Println()
+	}
 }

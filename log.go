@@ -3,64 +3,59 @@ package log
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
 	"reflect"
-	"sort"
 	"strconv"
-	"strings"
 	"time"
 
-	"github.com/fatih/color"
+	// "github.com/fatih/color"
 	"golang.org/x/exp/slices"
 	"golang.org/x/exp/slog"
 )
 
-var (
-	_levelDebug = color.HiBlackString("DEBUG")
-	_levelInfo  = color.HiWhiteString("INFO")
-	_levelWarn  = color.HiYellowString("WARN")
-	_levelError = color.RedString("ERROR")
-	_levelFatal = color.MagentaString("FATAL")
-)
+// var (
+// 	_levelDebug = color.HiBlackString("DEBUG")
+// 	_levelInfo  = color.HiWhiteString("INFO")
+// 	_levelWarn  = color.HiYellowString("WARN")
+// 	_levelError = color.RedString("ERROR")
+// 	_levelFatal = color.MagentaString("FATAL")
+// )
 
-var _ slog.Handler = Logger{}
+var _ slog.Handler = destructorHandler{}
 
-type Logger struct {
-	// TODO: add mutex
-	w                 io.Writer
+type destructorHandler struct {
+	h                 slog.Handler
 	group             string
-	preformattedAttrs []string
+	preformattedAttrs []slog.Attr
 	level             slog.Level
 }
 
-func New() Logger {
-	return Logger{
-		w:                 os.Stderr,
+func NewDestructorHandler(h slog.Handler) destructorHandler {
+	return destructorHandler{
+		h:                 h,
 		group:             "",
 		preformattedAttrs: nil,
 		level:             slog.LevelDebug,
 	}
 }
 
-func (l Logger) Enabled(_ context.Context, level slog.Level) bool {
+func (l destructorHandler) Enabled(_ context.Context, level slog.Level) bool {
 	return level >= l.level
 }
 
-func (l Logger) Handle(_ context.Context, record slog.Record) error {
-	var level string
-	switch record.Level {
-	case slog.LevelDebug:
-		level = _levelDebug
-	case slog.LevelInfo:
-		level = _levelInfo
-	case slog.LevelWarn:
-		level = _levelWarn
-	case slog.LevelError:
-		level = _levelError
-	default:
-		level = _levelFatal
-	}
+func (l destructorHandler) Handle(ctx context.Context, record slog.Record) error {
+	// var level string
+	// switch record.Level {
+	// case slog.LevelDebug:
+	// 	level = _levelDebug
+	// case slog.LevelInfo:
+	// 	level = _levelInfo
+	// case slog.LevelWarn:
+	// 	level = _levelWarn
+	// case slog.LevelError:
+	// 	level = _levelError
+	// default:
+	// 	level = _levelFatal
+	// }
 
 	fieldsSlice := slices.Clip(l.preformattedAttrs)
 	record.Attrs(func(a slog.Attr) bool {
@@ -68,40 +63,52 @@ func (l Logger) Handle(_ context.Context, record slog.Record) error {
 		return true
 	})
 
-	sort.Strings(fieldsSlice)
-	var fieldsStr string
-	if len(fieldsSlice) > 0 {
-		fieldsStr = "\n\t" + strings.Join(fieldsSlice, "\n\t")
-	}
+	// sort.Strings(fieldsSlice)
+	// var fieldsStr string
+	// if len(fieldsSlice) > 0 {
+	// 	fieldsStr = "\n\t" + strings.Join(fieldsSlice, "\n\t")
+	// }
 
-	_, err := fmt.Fprintf(l.w, "[%s] %s%s\n", level, record.Message, fieldsStr)
-	return err
+	// _, err := fmt.Fprintf(l.w, "[%s] %s%s\n", level, record.Message, fieldsStr)
+	record2 := slog.Record{
+		Time:    record.Time,
+		Message: record.Message,
+		Level:   record.Level,
+		PC:      record.PC,
+	}
+	record2.AddAttrs(fieldsSlice...)
+
+	return l.h.Handle(ctx, record2)
 }
 
-func (l Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
-	newAttrs := []string{}
+func (l destructorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	newAttrs := []slog.Attr{}
 	for _, a := range attrs {
 		newAttrs = append(newAttrs, formatAttr(l.group, slog.Any(a.Key, a.Value))...)
 	}
-	return Logger{
-		w:                 l.w,
+	return destructorHandler{
+		h:                 l.h,
 		group:             l.group,
 		preformattedAttrs: append(l.preformattedAttrs, newAttrs...),
 		level:             l.level,
 	}
 }
 
-func (l Logger) WithGroup(name string) slog.Handler {
-	return Logger{
-		w:                 l.w,
+func (l destructorHandler) WithGroup(name string) slog.Handler {
+	return destructorHandler{
+		h:                 l.h,
 		group:             l.group + name + "/",
 		preformattedAttrs: slices.Clip(l.preformattedAttrs),
 		level:             l.level,
 	}
 }
 
-func formatTrivialField(grp, k, v string) string {
-	return color.HiCyanString(grp) + color.BlueString(k) + "=" + color.GreenString("%s", v)
+func formatTrivialField(grp, k string, v slog.Value) slog.Attr {
+	return slog.Attr{
+		Key:   grp + k,
+		Value: v,
+	}
+	// return color.HiCyanString(grp) + color.BlueString(k) + "=" + color.GreenString("%s", v)
 }
 
 func isLeaf(v any) bool {
@@ -122,30 +129,59 @@ func isLeaf(v any) bool {
 	}
 }
 
-func formatLeaf(v any) string {
+func formatLeaf(v any) slog.Value {
 	switch v := v.(type) {
-	case bool, time.Duration,
-		int, int8, int16, int32, int64,
-		uint, uint8, uint16, uint32, uint64,
-		float32, float64, complex64, complex128:
-		return fmt.Sprint(v)
+	case int:
+		return slog.Int64Value(int64(v))
+	case int8:
+		return slog.Int64Value(int64(v))
+	case int16:
+		return slog.Int64Value(int64(v))
+	case int32:
+		return slog.Int64Value(int64(v))
+	case int64:
+		return slog.Int64Value(v)
+	case uint:
+		return slog.Uint64Value(uint64(v))
+	case uint8:
+		return slog.Uint64Value(uint64(v))
+	case uint16:
+		return slog.Uint64Value(uint64(v))
+	case uint32:
+		return slog.Uint64Value(uint64(v))
+	case uint64:
+		return slog.Uint64Value(v)
+	case float32:
+		return slog.Float64Value(float64(v))
+	case float64:
+		return slog.Float64Value(v)
+	case bool:
+		return slog.BoolValue(v)
+	case time.Duration:
+		return slog.DurationValue(v)
+	// complex64, complex128:
+	// return fmt.Sprint(v)
 	case string:
-		return fmt.Sprintf("%q", v)
+		return slog.StringValue(v)
+		// return fmt.Sprintf("%q", v)
 	case time.Time:
-		return v.Format(`"2006.01.02 15:04:05 MST"`)
+		return slog.TimeValue(v)
+		// return v.Format(`"2006.01.02 15:04:05 MST"`)
 	case fmt.Stringer:
-		return fmt.Sprint(v)
+		return slog.StringValue(v.String())
+		// return fmt.Sprint(v)
 	default:
-		switch reflect.TypeOf(v).Kind() {
-		case reflect.String, reflect.Bool,
-			reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-			reflect.Float32, reflect.Float64,
-			reflect.Complex64, reflect.Complex128:
-			return fmt.Sprint(v)
-		default:
-			return fmt.Sprintf("%#v", v)
-		}
+		// switch reflect.TypeOf(v).Kind() {
+		// case reflect.String, reflect.Bool,
+		// 	reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		// 	reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		// 	reflect.Float32, reflect.Float64,
+		// 	reflect.Complex64, reflect.Complex128:
+		// 	return fmt.Sprint(v)
+		// default:
+		// 	return fmt.Sprintf("%#v", v)
+		// }
+		return slog.StringValue(fmt.Sprint(v))
 	}
 }
 
@@ -189,91 +225,97 @@ func isShallow(v any) bool {
 	}
 }
 
-func formatShallow(grp string, v slog.Attr) string {
+func formatShallow(grp string, v slog.Attr) *slog.Attr {
 	k := v.Key
 	reflValue := reflect.ValueOf(v.Value.Any())
 	switch reflect.TypeOf(v.Value.Any()).Kind() {
 	case reflect.Pointer:
 		if reflValue.IsZero() {
-			return ""
+			return nil
 		}
 
 		return formatShallow(grp, slog.Any(k, reflValue.Elem().Interface()))
 	case reflect.Map:
 		if reflValue.Len() == 0 {
-			return ""
+			return nil
 		}
 
-		var sb strings.Builder
-		sb.WriteRune('{')
-		itemWritten := false
-		for i := reflValue.MapRange(); i.Next(); {
-			kk, vv := i.Key(), i.Value()
+		// var sb strings.Builder
+		// sb.WriteRune('{')
+		// itemWritten := false
+		// for i := reflValue.MapRange(); i.Next(); {
+		// 	kk, vv := i.Key(), i.Value()
 
-			if itemWritten {
-				sb.WriteString(", ")
-			}
+		// 	if itemWritten {
+		// 		sb.WriteString(", ")
+		// 	}
 
-			itemWritten = true
-			sb.WriteString(fmt.Sprint(kk.Interface()))
-			sb.WriteString(": ")
-			sb.WriteString(formatLeaf(vv.Interface()))
-		}
-		sb.WriteRune('}')
-		return formatTrivialField(grp, k, sb.String())
+		// 	itemWritten = true
+		// 	sb.WriteString(fmt.Sprint(kk.Interface()))
+		// 	sb.WriteString(": ")
+		// 	sb.WriteString(formatLeaf(vv.Interface()))
+		// }
+		// sb.WriteRune('}')
+
+		res := formatTrivialField(grp, k, v.Value)
+		return &res
 	case reflect.Slice:
 		if reflValue.Len() == 0 {
-			return ""
+			return nil
 		}
 
-		var sb strings.Builder
-		sb.WriteRune('[')
-		for i := 0; i < reflValue.Len(); i++ {
-			if i > 0 {
-				sb.WriteString(", ")
-			}
+		// var sb strings.Builder
+		// sb.WriteRune('[')
+		// for i := 0; i < reflValue.Len(); i++ {
+		// 	if i > 0 {
+		// 		sb.WriteString(", ")
+		// 	}
 
-			sb.WriteString(formatLeaf(reflValue.Index(i).Interface()))
-		}
-		sb.WriteRune(']')
-		return formatTrivialField(grp, k, sb.String())
+		// 	sb.WriteString(formatLeaf(reflValue.Index(i).Interface()))
+		// }
+		// sb.WriteRune(']')
+
+		res := formatTrivialField(grp, k, v.Value)
+		return &res
 	case reflect.Struct:
 		structType := reflect.TypeOf(v.Value.Any())
 
 		if structType.NumField() == 0 {
-			return ""
+			return nil
 		}
 
-		var sb strings.Builder
-		firstFieldWritten := false
-		sb.WriteRune('{')
-		for i := 0; i < structType.NumField(); i++ {
-			field := structType.Field(i)
-			if !field.IsExported() {
-				continue
-			}
+		// var sb strings.Builder
+		// firstFieldWritten := false
+		// sb.WriteRune('{')
+		// for i := 0; i < structType.NumField(); i++ {
+		// 	field := structType.Field(i)
+		// 	if !field.IsExported() {
+		// 		continue
+		// 	}
 
-			if firstFieldWritten {
-				sb.WriteString(", ")
-			}
+		// 	if firstFieldWritten {
+		// 		sb.WriteString(", ")
+		// 	}
 
-			firstFieldWritten = true
-			sb.WriteString(field.Name)
-			sb.WriteString(": ")
-			sb.WriteString(formatLeaf(reflValue.Field(i).Interface()))
-		}
-		sb.WriteRune('}')
-		return formatTrivialField(grp, k, sb.String())
+		// 	firstFieldWritten = true
+		// 	sb.WriteString(field.Name)
+		// 	sb.WriteString(": ")
+		// 	sb.WriteString(formatLeaf(reflValue.Field(i).Interface()))
+		// }
+		// sb.WriteRune('}')
+
+		res := formatTrivialField(grp, k, v.Value)
+		return &res
 	default:
 		panic(fmt.Sprintf("can't marshal %T as shallow type", v.Value.Any()))
 	}
 }
 
-func formatError(err error) string {
-	return fmt.Sprintf("%T(%s)", err, err.Error())
+func formatError(err error) slog.Value {
+	return slog.StringValue(fmt.Sprintf("%T(%s)", err, err.Error()))
 }
 
-func formatAttr(grp string, a slog.Attr) []string {
+func formatAttr(grp string, a slog.Attr) []slog.Attr {
 	t, isTime := a.Value.Any().(time.Time)
 	if isTime && t.IsZero() || // If r.Time is the zero time, ignore the time.
 		a.Equal(slog.Attr{}) ||
@@ -291,37 +333,37 @@ func formatAttr(grp string, a slog.Attr) []string {
 		if !b {
 			return nil
 		}
-		return []string{formatTrivialField(grp, k, formatLeaf(b))}
+		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(b))}
 	case slog.KindDuration:
 		d := a.Value.Duration()
 		if d == 0 {
 			return nil
 		}
-		return []string{formatTrivialField(grp, k, formatLeaf(d))}
+		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(d))}
 	case slog.KindString:
 		s := a.Value.String()
 		if s == "" {
 			return nil
 		}
-		return []string{formatTrivialField(grp, k, formatLeaf(s))}
+		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(s))}
 	case slog.KindFloat64:
 		f := a.Value.Float64()
 		if f == 0 {
 			return nil
 		}
-		return []string{formatTrivialField(grp, k, formatLeaf(f))}
+		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(f))}
 	case slog.KindInt64:
 		i := a.Value.Int64()
 		if i == 0 {
 			return nil
 		}
-		return []string{formatTrivialField(grp, k, formatLeaf(i))}
+		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(i))}
 	case slog.KindUint64:
 		u := a.Value.Uint64()
 		if u == 0 {
 			return nil
 		}
-		return []string{formatTrivialField(grp, k, formatLeaf(u))}
+		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(u))}
 	case slog.KindGroup:
 		// If a group has no Attrs (even if it has a non-empty key), ignore it.
 		if len(a.Value.Group()) == 0 {
@@ -333,7 +375,7 @@ func formatAttr(grp string, a slog.Attr) []string {
 			groupPrefix = k + "/" + groupPrefix
 		}
 
-		res := []string{}
+		res := []slog.Attr{}
 		for _, aa := range a.Value.Group() {
 			res = append(res, formatAttr(groupPrefix, aa)...)
 		}
@@ -342,16 +384,16 @@ func formatAttr(grp string, a slog.Attr) []string {
 		panic("value is unresolved after resolve")
 	case slog.KindTime, slog.KindAny:
 		if isLeaf(a.Value.Any()) {
-			return []string{formatTrivialField(grp, k, formatLeaf(a.Value.Any()))}
+			return []slog.Attr{formatTrivialField(grp, k, formatLeaf(a.Value.Any()))}
 		}
 
 		if isShallow(a.Value.Any()) {
 			res := formatShallow(grp, a)
-			if res == "" {
+			if res == nil {
 				return nil
 			}
 
-			return []string{res}
+			return []slog.Attr{*res}
 		}
 
 		v := a.Value.Any()
@@ -365,7 +407,7 @@ func formatAttr(grp string, a slog.Attr) []string {
 			res := formatAttr(grp, slog.Any(k, reflValue.Elem().Interface()))
 			if len(res) == 0 {
 				if err, ok := v.(error); ok {
-					return []string{formatTrivialField(grp, k, formatError(err))}
+					return []slog.Attr{formatTrivialField(grp, k, formatError(err))}
 				}
 
 				return nil
@@ -377,7 +419,7 @@ func formatAttr(grp string, a slog.Attr) []string {
 				return nil
 			}
 
-			res := []string{}
+			res := []slog.Attr{}
 			for i := reflValue.MapRange(); i.Next(); {
 				kk, vv := i.Key(), i.Value()
 
@@ -389,7 +431,7 @@ func formatAttr(grp string, a slog.Attr) []string {
 				return nil
 			}
 
-			res := []string{}
+			res := []slog.Attr{}
 			for i := 0; i < reflValue.Len(); i++ {
 				res = append(res, formatAttr(grp, slog.Any(k+"."+strconv.Itoa(i), reflValue.Index(i).Interface()))...)
 			}
@@ -397,7 +439,7 @@ func formatAttr(grp string, a slog.Attr) []string {
 		case reflect.Struct:
 			structType := reflect.TypeOf(v)
 
-			res := []string{}
+			res := []slog.Attr{}
 			for i := 0; i < structType.NumField(); i++ {
 				field := structType.Field(i)
 				if !field.IsExported() {
@@ -408,7 +450,7 @@ func formatAttr(grp string, a slog.Attr) []string {
 			}
 			if len(res) == 0 {
 				if err, ok := v.(error); ok {
-					return []string{formatTrivialField(grp, k, formatError(err))}
+					return []slog.Attr{formatTrivialField(grp, k, formatError(err))}
 				}
 
 				return nil
@@ -416,11 +458,11 @@ func formatAttr(grp string, a slog.Attr) []string {
 
 			return res
 		default:
-			if stringer, ok := v.(error); ok {
-				return []string{formatTrivialField(grp, k, stringer.Error())}
+			if err, ok := v.(error); ok {
+				return []slog.Attr{formatTrivialField(grp, k, formatError(err))}
 			}
 
-			return []string{formatTrivialField(grp, k, fmt.Sprintf("%[1]T(%#[1]v)", v))}
+			return []slog.Attr{formatTrivialField(grp, k, slog.StringValue(fmt.Sprintf("%[1]T(%#[1]v)", v)))}
 		}
 	default:
 		panic("unknown value kind")
