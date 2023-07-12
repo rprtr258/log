@@ -84,7 +84,7 @@ func prettyFormatAttr(grp string, a slog.Attr) []string {
 		color.GreenString("%s", valueStr)}
 }
 
-func (l prettyHandler) Handle(ctx context.Context, record slog.Record) error {
+func (l prettyHandler) Handle(_ context.Context, record slog.Record) error {
 	var level string
 	switch record.Level {
 	case slog.LevelDebug:

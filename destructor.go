@@ -129,8 +129,6 @@ func formatLeaf(v any) slog.Value {
 		return slog.BoolValue(v)
 	case time.Duration:
 		return slog.DurationValue(v)
-	// complex64, complex128:
-	// return fmt.Sprint(v)
 	case string:
 		return slog.StringValue(v)
 	case time.Time:
@@ -139,132 +137,6 @@ func formatLeaf(v any) slog.Value {
 		return slog.StringValue(v.String())
 	default:
 		return slog.StringValue(fmt.Sprint(v))
-	}
-}
-
-// isShallow - returns true if given struct/list/map has one level of nesting
-func isShallow(v any) bool {
-	reflValue := reflect.ValueOf(v)
-	switch reflect.TypeOf(v).Kind() {
-	case reflect.Pointer:
-		if reflValue.IsZero() { // nil pointer
-			return false
-		}
-
-		return isShallow(reflValue.Elem().Interface())
-	case reflect.Map:
-		res := true
-		for i := reflValue.MapRange(); i.Next(); {
-			res = res && isLeaf(i.Value().Interface())
-		}
-		return res && reflValue.Len() != 1
-	case reflect.Slice:
-		res := true
-		for i := 0; i < reflValue.Len(); i++ {
-			res = res && isLeaf(reflValue.Index(i).Interface())
-		}
-		return res && reflValue.Len() != 1
-	case reflect.Struct:
-		structType := reflect.TypeOf(v)
-
-		res := true
-		for i := 0; i < structType.NumField(); i++ {
-			field := structType.Field(i)
-			if !field.IsExported() {
-				continue
-			}
-
-			res = res && isLeaf(reflValue.Field(i).Interface())
-		}
-		return res && reflValue.NumField() != 1
-	default:
-		return false
-	}
-}
-
-func formatShallow(grp string, v slog.Attr) *slog.Attr {
-	k := v.Key
-	reflValue := reflect.ValueOf(v.Value.Any())
-	switch reflect.TypeOf(v.Value.Any()).Kind() {
-	case reflect.Pointer:
-		if reflValue.IsZero() {
-			return nil
-		}
-
-		return formatShallow(grp, slog.Any(k, reflValue.Elem().Interface()))
-	case reflect.Map:
-		if reflValue.Len() == 0 {
-			return nil
-		}
-
-		// var sb strings.Builder
-		// sb.WriteRune('{')
-		// itemWritten := false
-		// for i := reflValue.MapRange(); i.Next(); {
-		// 	kk, vv := i.Key(), i.Value()
-
-		// 	if itemWritten {
-		// 		sb.WriteString(", ")
-		// 	}
-
-		// 	itemWritten = true
-		// 	sb.WriteString(fmt.Sprint(kk.Interface()))
-		// 	sb.WriteString(": ")
-		// 	sb.WriteString(formatLeaf(vv.Interface()))
-		// }
-		// sb.WriteRune('}')
-
-		res := formatTrivialField(grp, k, v.Value)
-		return &res
-	case reflect.Slice:
-		if reflValue.Len() == 0 {
-			return nil
-		}
-
-		// var sb strings.Builder
-		// sb.WriteRune('[')
-		// for i := 0; i < reflValue.Len(); i++ {
-		// 	if i > 0 {
-		// 		sb.WriteString(", ")
-		// 	}
-
-		// 	sb.WriteString(formatLeaf(reflValue.Index(i).Interface()))
-		// }
-		// sb.WriteRune(']')
-
-		res := formatTrivialField(grp, k, v.Value)
-		return &res
-	case reflect.Struct:
-		structType := reflect.TypeOf(v.Value.Any())
-
-		if structType.NumField() == 0 {
-			return nil
-		}
-
-		// var sb strings.Builder
-		// firstFieldWritten := false
-		// sb.WriteRune('{')
-		// for i := 0; i < structType.NumField(); i++ {
-		// 	field := structType.Field(i)
-		// 	if !field.IsExported() {
-		// 		continue
-		// 	}
-
-		// 	if firstFieldWritten {
-		// 		sb.WriteString(", ")
-		// 	}
-
-		// 	firstFieldWritten = true
-		// 	sb.WriteString(field.Name)
-		// 	sb.WriteString(": ")
-		// 	sb.WriteString(formatLeaf(reflValue.Field(i).Interface()))
-		// }
-		// sb.WriteRune('}')
-
-		res := formatTrivialField(grp, k, v.Value)
-		return &res
-	default:
-		panic(fmt.Sprintf("can't marshal %T as shallow type", v.Value.Any()))
 	}
 }
 
@@ -342,15 +214,6 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 	case slog.KindTime, slog.KindAny:
 		if isLeaf(a.Value.Any()) {
 			return []slog.Attr{formatTrivialField(grp, k, formatLeaf(a.Value.Any()))}
-		}
-
-		if isShallow(a.Value.Any()) {
-			res := formatShallow(grp, a)
-			if res == nil {
-				return nil
-			}
-
-			return []slog.Attr{*res}
 		}
 
 		v := a.Value.Any()
