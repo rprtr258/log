@@ -77,7 +77,7 @@ func TestFormatAttr(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, test.want, formatAttr("", test.attr))
+			assert.Equal(t, test.want, formatAttr(test.attr))
 		})
 	}
 }

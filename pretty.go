@@ -118,7 +118,7 @@ func (l prettyHandler) Handle(_ context.Context, record slog.Record) error {
 func (l prettyHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	newAttrs := []string{}
 	for _, a := range attrs {
-		for _, attr := range formatAttr(l.group, slog.Any(a.Key, a.Value)) {
+		for _, attr := range formatAttr(slog.Group(l.group, a)) {
 			newAttrs = append(newAttrs, prettyFormatAttr("", attr)...)
 		}
 	}

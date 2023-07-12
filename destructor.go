@@ -15,7 +15,7 @@ var _ slog.Handler = destructorHandler{}
 
 type destructorHandler struct {
 	h                 slog.Handler
-	group             string
+	groups            []string
 	preformattedAttrs []slog.Attr
 	level             slog.Level
 }
@@ -23,7 +23,7 @@ type destructorHandler struct {
 func NewDestructorHandler(h slog.Handler) destructorHandler {
 	return destructorHandler{
 		h:                 h,
-		group:             "",
+		groups:            nil,
 		preformattedAttrs: nil,
 		level:             slog.LevelDebug,
 	}
@@ -96,15 +96,7 @@ func isLeaf(v any) bool {
 	}
 }
 
-// TODO: slog.GroupValue
-func formatTrivialField(grp, k string, v slog.Value) slog.Attr {
-	return slog.Attr{
-		Key:   grp + k,
-		Value: v,
-	}
-}
-
-func formatAttr(grp string, a slog.Attr) []slog.Attr {
+func formatAttr(a slog.Attr) []slog.Attr {
 	t, isTime := a.Value.Any().(time.Time)
 	if isTime && t.IsZero() || // If r.Time is the zero time, ignore the time.
 		a.Equal(slog.Attr{}) ||
@@ -122,58 +114,60 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 		if !b {
 			return nil
 		}
-		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(b))}
+		return []slog.Attr{a}
 	case slog.KindDuration:
 		d := a.Value.Duration()
 		if d == 0 {
 			return nil
 		}
-		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(d))}
+		return []slog.Attr{a}
 	case slog.KindString:
 		s := a.Value.String()
 		if s == "" {
 			return nil
 		}
-		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(s))}
+		return []slog.Attr{a}
 	case slog.KindFloat64:
 		f := a.Value.Float64()
 		if f == 0 {
 			return nil
 		}
-		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(f))}
+		return []slog.Attr{a}
 	case slog.KindInt64:
 		i := a.Value.Int64()
 		if i == 0 {
 			return nil
 		}
-		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(i))}
+		return []slog.Attr{a}
 	case slog.KindUint64:
 		u := a.Value.Uint64()
 		if u == 0 {
 			return nil
 		}
-		return []slog.Attr{formatTrivialField(grp, k, formatLeaf(u))}
+		return []slog.Attr{a}
 	case slog.KindGroup:
 		// If a group has no Attrs (even if it has a non-empty key), ignore it.
 		if len(a.Value.Group()) == 0 {
 			return nil
 		}
 
-		groupPrefix := grp
-		if a.Key != "" {
-			groupPrefix = k + "/" + groupPrefix
-		}
-
-		res := []slog.Attr{}
+		res := []any{}
 		for _, aa := range a.Value.Group() {
-			res = append(res, formatAttr(groupPrefix, aa)...)
+			for _, aaa := range formatAttr(aa) {
+				res = append(res, aaa)
+			}
 		}
-		return res
+		return []slog.Attr{slog.Group(a.Key, res...)}
+	case slog.KindTime:
+		return []slog.Attr{a}
 	case slog.KindLogValuer:
 		panic("value is unresolved after resolve")
-	case slog.KindTime, slog.KindAny:
+	case slog.KindAny:
 		if isLeaf(a.Value.Any()) {
-			return []slog.Attr{formatTrivialField(grp, k, formatLeaf(a.Value.Any()))}
+			return []slog.Attr{{
+				Key:   a.Key,
+				Value: formatLeaf(a.Value.Any()),
+			}}
 		}
 
 		v := a.Value.Any()
@@ -184,10 +178,13 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 				return nil
 			}
 
-			res := formatAttr(grp, slog.Any(k, reflValue.Elem().Interface()))
+			res := formatAttr(slog.Any(k, reflValue.Elem().Interface()))
 			if len(res) == 0 {
 				if err, ok := v.(error); ok {
-					return []slog.Attr{formatTrivialField(grp, k, formatError(err))}
+					return []slog.Attr{{
+						Key:   k,
+						Value: formatError(err),
+					}}
 				}
 
 				return nil
@@ -203,7 +200,7 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 			for i := reflValue.MapRange(); i.Next(); {
 				kk, vv := i.Key(), i.Value()
 
-				res = append(res, formatAttr(grp, slog.Any(k+"."+fmt.Sprint(kk), vv.Interface()))...)
+				res = append(res, formatAttr(slog.Any(k+"."+fmt.Sprint(kk), vv.Interface()))...)
 			}
 			return res
 		case reflect.Slice:
@@ -213,7 +210,7 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 
 			res := []slog.Attr{}
 			for i := 0; i < reflValue.Len(); i++ {
-				res = append(res, formatAttr(grp, slog.Any(k+"."+strconv.Itoa(i), reflValue.Index(i).Interface()))...)
+				res = append(res, formatAttr(slog.Any(k+"."+strconv.Itoa(i), reflValue.Index(i).Interface()))...)
 			}
 			return res
 		case reflect.Struct:
@@ -226,11 +223,11 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 					continue
 				}
 
-				res = append(res, formatAttr(grp, slog.Any(k+"."+field.Name, reflValue.Field(i).Interface()))...)
+				res = append(res, formatAttr(slog.Any(k+"."+field.Name, reflValue.Field(i).Interface()))...)
 			}
 			if len(res) == 0 {
 				if err, ok := v.(error); ok {
-					return []slog.Attr{formatTrivialField(grp, k, formatError(err))}
+					return []slog.Attr{{Key: k, Value: formatError(err)}}
 				}
 
 				return nil
@@ -239,10 +236,10 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 			return res
 		default:
 			if err, ok := v.(error); ok {
-				return []slog.Attr{formatTrivialField(grp, k, formatError(err))}
+				return []slog.Attr{{Key: k, Value: formatError(err)}}
 			}
 
-			return []slog.Attr{formatTrivialField(grp, k, slog.StringValue(fmt.Sprintf("%[1]T(%#[1]v)", v)))}
+			return []slog.Attr{{Key: k, Value: slog.StringValue(fmt.Sprintf("%[1]T(%#[1]v)", v))}}
 		}
 	default:
 		panic("unknown value kind")
@@ -252,7 +249,7 @@ func formatAttr(grp string, a slog.Attr) []slog.Attr {
 func (l destructorHandler) Handle(ctx context.Context, record slog.Record) error {
 	fieldsSlice := slices.Clip(l.preformattedAttrs)
 	record.Attrs(func(a slog.Attr) bool {
-		fieldsSlice = append(fieldsSlice, formatAttr("", a)...)
+		fieldsSlice = append(fieldsSlice, formatAttr(a)...)
 		return true
 	})
 
@@ -270,11 +267,14 @@ func (l destructorHandler) Handle(ctx context.Context, record slog.Record) error
 func (l destructorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 	newAttrs := []slog.Attr{}
 	for _, a := range attrs {
-		newAttrs = append(newAttrs, formatAttr(l.group, slog.Any(a.Key, a.Value))...)
+		for _, grp := range l.groups {
+			a = slog.Group(grp, a)
+		}
+		newAttrs = append(newAttrs, formatAttr(a)...)
 	}
 	return destructorHandler{
 		h:                 l.h,
-		group:             l.group,
+		groups:            l.groups,
 		preformattedAttrs: append(l.preformattedAttrs, newAttrs...),
 		level:             l.level,
 	}
@@ -283,7 +283,7 @@ func (l destructorHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
 func (l destructorHandler) WithGroup(name string) slog.Handler {
 	return destructorHandler{
 		h:                 l.h,
-		group:             l.group + name + "/",
+		groups:            append(l.groups, name),
 		preformattedAttrs: slices.Clip(l.preformattedAttrs),
 		level:             l.level,
 	}
