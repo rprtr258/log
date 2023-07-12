@@ -7,18 +7,9 @@ import (
 	"strconv"
 	"time"
 
-	// "github.com/fatih/color"
 	"golang.org/x/exp/slices"
 	"golang.org/x/exp/slog"
 )
-
-// var (
-// 	_levelDebug = color.HiBlackString("DEBUG")
-// 	_levelInfo  = color.HiWhiteString("INFO")
-// 	_levelWarn  = color.HiYellowString("WARN")
-// 	_levelError = color.RedString("ERROR")
-// 	_levelFatal = color.MagentaString("FATAL")
-// )
 
 var _ slog.Handler = destructorHandler{}
 
@@ -43,33 +34,12 @@ func (l destructorHandler) Enabled(_ context.Context, level slog.Level) bool {
 }
 
 func (l destructorHandler) Handle(ctx context.Context, record slog.Record) error {
-	// var level string
-	// switch record.Level {
-	// case slog.LevelDebug:
-	// 	level = _levelDebug
-	// case slog.LevelInfo:
-	// 	level = _levelInfo
-	// case slog.LevelWarn:
-	// 	level = _levelWarn
-	// case slog.LevelError:
-	// 	level = _levelError
-	// default:
-	// 	level = _levelFatal
-	// }
-
 	fieldsSlice := slices.Clip(l.preformattedAttrs)
 	record.Attrs(func(a slog.Attr) bool {
 		fieldsSlice = append(fieldsSlice, formatAttr("", a)...)
 		return true
 	})
 
-	// sort.Strings(fieldsSlice)
-	// var fieldsStr string
-	// if len(fieldsSlice) > 0 {
-	// 	fieldsStr = "\n\t" + strings.Join(fieldsSlice, "\n\t")
-	// }
-
-	// _, err := fmt.Fprintf(l.w, "[%s] %s%s\n", level, record.Message, fieldsStr)
 	record2 := slog.Record{
 		Time:    record.Time,
 		Message: record.Message,
@@ -103,12 +73,12 @@ func (l destructorHandler) WithGroup(name string) slog.Handler {
 	}
 }
 
+// TODO: slog.GroupValue
 func formatTrivialField(grp, k string, v slog.Value) slog.Attr {
 	return slog.Attr{
 		Key:   grp + k,
 		Value: v,
 	}
-	// return color.HiCyanString(grp) + color.BlueString(k) + "=" + color.GreenString("%s", v)
 }
 
 func isLeaf(v any) bool {
@@ -163,24 +133,11 @@ func formatLeaf(v any) slog.Value {
 	// return fmt.Sprint(v)
 	case string:
 		return slog.StringValue(v)
-		// return fmt.Sprintf("%q", v)
 	case time.Time:
 		return slog.TimeValue(v)
-		// return v.Format(`"2006.01.02 15:04:05 MST"`)
 	case fmt.Stringer:
 		return slog.StringValue(v.String())
-		// return fmt.Sprint(v)
 	default:
-		// switch reflect.TypeOf(v).Kind() {
-		// case reflect.String, reflect.Bool,
-		// 	reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		// 	reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
-		// 	reflect.Float32, reflect.Float64,
-		// 	reflect.Complex64, reflect.Complex128:
-		// 	return fmt.Sprint(v)
-		// default:
-		// 	return fmt.Sprintf("%#v", v)
-		// }
 		return slog.StringValue(fmt.Sprint(v))
 	}
 }

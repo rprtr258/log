@@ -147,22 +147,41 @@ func run(l slog.Handler) {
 }
 
 func main() {
-	for name, l := range map[string]slog.Handler{
-		"json": slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-			AddSource: true,
-		}),
-		"log(json)": log.NewDestructorHandler(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-			AddSource: true,
-		})),
-		"text": slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			AddSource: true,
-		}),
-		"log(text)": log.NewDestructorHandler(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-			AddSource: true,
-		})),
+	for _, l := range []struct {
+		name string
+		h    slog.Handler
+	}{
+		{
+			name: "json",
+			h: slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+			}),
+		},
+		{
+			name: "destruct(json)",
+			h: log.NewDestructorHandler(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+			})),
+		},
+		{
+			name: "text",
+			h: slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+			}),
+		},
+		{
+			name: "destruct(text)",
+			h: log.NewDestructorHandler(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
+				AddSource: true,
+			})),
+		},
+		{
+			name: "destruct(pretty)",
+			h:    log.NewDestructorHandler(log.NewPrettyHandler(os.Stderr)),
+		},
 	} {
-		fmt.Println(name)
-		run(l)
+		fmt.Println(l.name)
+		run(l.h)
 		fmt.Println()
 		fmt.Println()
 		fmt.Println()
