@@ -97,60 +97,15 @@ func isLeaf(v any) bool {
 }
 
 func formatAttr(a slog.Attr) []slog.Attr {
-	t, isTime := a.Value.Any().(time.Time)
-	if isTime && t.IsZero() || // If r.Time is the zero time, ignore the time.
-		a.Equal(slog.Attr{}) ||
-		a.Value.Any() == nil { // If an Attr's key and value are both the zero value, ignore the Attr.
-		return nil
-	}
-
 	// Attr's values should be resolved.
 	k := a.Key
 	a.Value = a.Value.Resolve()
 
 	switch a.Value.Kind() {
-	case slog.KindBool:
-		b := a.Value.Bool()
-		if !b {
-			return nil
-		}
-		return []slog.Attr{a}
-	case slog.KindDuration:
-		d := a.Value.Duration()
-		if d == 0 {
-			return nil
-		}
-		return []slog.Attr{a}
-	case slog.KindString:
-		s := a.Value.String()
-		if s == "" {
-			return nil
-		}
-		return []slog.Attr{a}
-	case slog.KindFloat64:
-		f := a.Value.Float64()
-		if f == 0 {
-			return nil
-		}
-		return []slog.Attr{a}
-	case slog.KindInt64:
-		i := a.Value.Int64()
-		if i == 0 {
-			return nil
-		}
-		return []slog.Attr{a}
-	case slog.KindUint64:
-		u := a.Value.Uint64()
-		if u == 0 {
-			return nil
-		}
+	case slog.KindBool, slog.KindDuration, slog.KindString,
+		slog.KindFloat64, slog.KindInt64, slog.KindUint64:
 		return []slog.Attr{a}
 	case slog.KindGroup:
-		// If a group has no Attrs (even if it has a non-empty key), ignore it.
-		if len(a.Value.Group()) == 0 {
-			return nil
-		}
-
 		res := []any{}
 		for _, aa := range a.Value.Group() {
 			for _, aaa := range formatAttr(aa) {
@@ -192,10 +147,6 @@ func formatAttr(a slog.Attr) []slog.Attr {
 
 			return res
 		case reflect.Map:
-			if reflValue.Len() == 0 {
-				return nil
-			}
-
 			res := []slog.Attr{}
 			for i := reflValue.MapRange(); i.Next(); {
 				kk, vv := i.Key(), i.Value()
@@ -204,10 +155,6 @@ func formatAttr(a slog.Attr) []slog.Attr {
 			}
 			return res
 		case reflect.Slice:
-			if reflValue.Len() == 0 {
-				return nil
-			}
-
 			res := []slog.Attr{}
 			for i := 0; i < reflValue.Len(); i++ {
 				res = append(res, formatAttr(slog.Any(k+"."+strconv.Itoa(i), reflValue.Index(i).Interface()))...)
